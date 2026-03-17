@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Evaluador Pro</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#007bff">
+    
+    <style>
+        /* Estilo moderno y limpio */
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: #f0f2f5; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .card { 
+            background: white; 
+            padding: 2.5rem; 
+            border-radius: 20px; 
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1); 
+            width: 90%;
+            max-width: 400px; 
+            text-align: center;
+        }
+        h2 { color: #007bff; margin-bottom: 0.5rem; }
+        #pregunta { font-size: 1.2rem; color: #444; margin-bottom: 1.5rem; }
+        .btn { 
+            display: block; 
+            width: 100%; 
+            padding: 12px; 
+            margin: 10px 0; 
+            border: 2px solid #eee; 
+            border-radius: 12px; 
+            background: white;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer; 
+            transition: all 0.2s ease; 
+        }
+        .btn:hover { background: #f8f9fa; border-color: #007bff; }
+        .correct { background: #d4edda !important; border-color: #28a745 !important; color: #155724; }
+        .wrong { background: #f8d7da !important; border-color: #dc3545 !important; color: #721c24; }
+        #mensaje { font-weight: bold; margin-top: 15px; min-height: 1.5em; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2 id="tema">Cargando...</h2>
+    <p id="pregunta">Preparando evaluación...</p>
+    <div id="opciones"></div>
+    <div id="mensaje"></div>
+</div>
+
+<script>
+    // Registro automático del Service Worker para permitir instalación
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('service-worker.js').catch(err => console.log(err));
+        });
+    }
+
+    // Datos que viajan desde la base de datos
+    const preguntas = [
+        { enunciado: "¿Qué es Python?", opciones: ["Un lenguaje", "Un auto", "Una marca"], correcta: 0, tema: "Programación" },
+        { enunciado: "¿Cuál es un lenguaje de Backend?", opciones: ["CSS", "Python", "HTML"], correcta: 1, tema: "Desarrollo" }
+    ];
+
+    let indiceActual = 0;
+
+    function cargarPregunta() {
+        const p = preguntas[indiceActual];
+        document.getElementById('tema').innerText = p.tema;
+        document.getElementById('pregunta').innerText = p.enunciado;
+        const contenedor = document.getElementById('opciones');
+        contenedor.innerHTML = ""; 
+        document.getElementById('mensaje').innerText = "";
+
+        p.opciones.forEach((opcion, i) => {
+            const boton = document.createElement('button');
+            boton.innerText = opcion;
+            boton.className = 'btn';
+            boton.onclick = () => verificar(i, p.correcta, boton);
+            contenedor.appendChild(boton);
+        });
+    }
+
+    function verificar(seleccion, correcta, boton) {
+        const botones = document.querySelectorAll('.btn');
+        botones.forEach(b => b.disabled = true); 
+
+        if(seleccion === correcta) {
+            boton.classList.add('correct');
+            document.getElementById('mensaje').innerText = "¡Correcto! 🌟";
+        } else {
+            boton.classList.add('wrong');
+            document.getElementById('mensaje').innerText = "Incorrecto ❌";
+        }
+
+        setTimeout(() => {
+            indiceActual++;
+            if(indiceActual < preguntas.length) {
+                cargarPregunta();
+            } else {
+                document.querySelector('.card').innerHTML = "<h2>¡Completado!</h2><p>Has terminado la evaluación con éxito.</p>";
+            }
+        }, 1500);
+    }
+
+    // Iniciar la app
+    cargarPregunta();
+</script>
+
+</body>
+</html>
