@@ -3,12 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Evaluador Pro</title>
+    <title>Evaluador Pro IA</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#007bff">
     
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+
     <style>
-        /* Estilo moderno y limpio */
         body { 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
             background: #f0f2f5; 
@@ -20,15 +21,15 @@
         }
         .card { 
             background: white; 
-            padding: 2.5rem; 
+            padding: 2rem; 
             border-radius: 20px; 
             box-shadow: 0 10px 25px rgba(0,0,0,0.1); 
             width: 90%;
-            max-width: 400px; 
+            max-width: 420px; 
             text-align: center;
         }
-        h2 { color: #007bff; margin-bottom: 0.5rem; }
-        #pregunta { font-size: 1.2rem; color: #444; margin-bottom: 1.5rem; }
+        h2 { color: #007bff; margin-top: 0; }
+        #pregunta { font-size: 1.1rem; color: #444; margin-bottom: 1.5rem; font-weight: 500; }
         .btn { 
             display: block; 
             width: 100%; 
@@ -38,41 +39,119 @@
             border-radius: 12px; 
             background: white;
             font-size: 1rem;
-            font-weight: 500;
             cursor: pointer; 
             transition: all 0.2s ease; 
         }
         .btn:hover { background: #f8f9fa; border-color: #007bff; }
         .correct { background: #d4edda !important; border-color: #28a745 !important; color: #155724; }
         .wrong { background: #f8d7da !important; border-color: #dc3545 !important; color: #721c24; }
-        #mensaje { font-weight: bold; margin-top: 15px; min-height: 1.5em; }
+        #mensaje { font-weight: bold; margin-top: 15px; min-height: 1.5em; color: #555; }
+        
+        /* Zona de carga de PDF */
+        .zona-pdf {
+            margin-top: 20px;
+            padding: 15px;
+            border: 2px dashed #007bff;
+            border-radius: 15px;
+            background: #f8fbff;
+        }
+        .input-file { font-size: 0.8rem; margin-bottom: 10px; width: 100%; }
+        .btn-ia { background: #007bff; color: white; border: none; font-weight: bold; }
+        .btn-ia:hover { background: #0056b3; }
+        .oculto { display: none; }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <h2 id="tema">Cargando...</h2>
-    <p id="pregunta">Preparando evaluación...</p>
-    <div id="opciones"></div>
-    <div id="mensaje"></div>
+    <div id="contenedor-evaluacion">
+        <h2 id="tema">Evaluador Pro</h2>
+        <p id="pregunta">Sube un PDF para generar preguntas con IA o responde las de ejemplo.</p>
+        <div id="opciones"></div>
+        <div id="mensaje"></div>
+    </div>
+
+    <div class="zona-pdf" id="seccion-carga">
+        <p style="margin-top:0; font-size: 0.9rem; font-weight: bold;">Generar examen desde PDF</p>
+        <input type="file" id="subir-pdf" accept="application/pdf" class="input-file">
+        <button class="btn btn-ia" onclick="procesarPDF()">GENERAR CON IA 🤖</button>
+    </div>
 </div>
 
 <script>
-    // Registro automático del Service Worker para permitir instalación
-    if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-            navigator.serviceWorker.register('service-worker.js').catch(err => console.log(err));
-        });
-    }
+    // --- CONFIGURACIÓN ---
+    const API_KEY = "AIzaSyBX2MT3TjXS_H8H0XO7366wJ5f1UkWMWKM"; 
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
 
-    // Datos que viajan desde la base de datos
-    const preguntas = [
-        { enunciado: "¿Qué es Python?", opciones: ["Un lenguaje", "Un auto", "Una marca"], correcta: 0, tema: "Programación" },
-        { enunciado: "¿Cuál es un lenguaje de Backend?", opciones: ["CSS", "Python", "HTML"], correcta: 1, tema: "Desarrollo" }
+    let preguntas = [
+        { enunciado: "¿Qué es Python?", opciones: ["Un lenguaje", "Un auto", "Una marca", "Un planeta"], correcta: 0, tema: "Programación" }
     ];
-
     let indiceActual = 0;
 
+    // --- LÓGICA DE LA IA Y PDF ---
+    async function procesarPDF() {
+        const fileInput = document.getElementById('subir-pdf');
+        if (fileInput.files.length === 0) return alert("Por favor, selecciona un archivo PDF.");
+        
+        document.getElementById('mensaje').innerText = "Leyendo documento... 📄";
+        const file = fileInput.files[0];
+        const reader = new FileReader();
+        
+        reader.onload = async function() {
+            try {
+                const typedarray = new Uint8Array(this.result);
+                const pdf = await pdfjsLib.getDocument(typedarray).promise;
+                let textoExtraido = "";
+                
+                // Extraemos texto de las primeras 4 páginas
+                const maxPaginas = Math.min(pdf.numPages, 4);
+                for (let i = 1; i <= maxPaginas; i++) {
+                    const page = await pdf.getPage(i);
+                    const content = await page.getTextContent();
+                    textoExtraido += content.items.map(item => item.str).join(" ");
+                }
+                
+                llamarIA(textoExtraido);
+            } catch (e) {
+                document.getElementById('mensaje').innerText = "Error al leer el PDF ❌";
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    }
+
+    async function llamarIA(texto) {
+        document.getElementById('mensaje').innerText = "IA creando preguntas... 🤖✨";
+        
+        const prompt = `Analiza este texto y genera 5 preguntas de examen. 
+        Cada pregunta debe tener 4 opciones y solo una correcta.
+        Responde ÚNICAMENTE en formato JSON plano, sin textos extra, así:
+        [{"enunciado": "pregunta", "opciones": ["1", "2", "3", "4"], "correcta": 0, "tema": "PDF"}]
+        Texto: ${texto.substring(0, 4000)}`;
+
+        try {
+            const respuesta = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+            });
+
+            const data = await respuesta.json();
+            let jsonIA = data.candidates[0].content.parts[0].text;
+            
+            // Limpiamos el texto por si la IA añade bloques de código Markdown
+            jsonIA = jsonIA.replace(/```json/g, "").replace(/```/g, "").trim();
+            
+            const nuevasPreguntas = JSON.parse(jsonIA);
+            preguntas = nuevasPreguntas;
+            indiceActual = 0;
+            document.getElementById('seccion-carga').classList.add('oculto');
+            cargarPregunta();
+        } catch (error) {
+            document.getElementById('mensaje').innerText = "Error con la IA. Revisa tu API Key. 🔑";
+        }
+    }
+
+    // --- LÓGICA DE LA APP (INTERFAZ) ---
     function cargarPregunta() {
         const p = preguntas[indiceActual];
         document.getElementById('tema').innerText = p.tema;
@@ -107,12 +186,18 @@
             if(indiceActual < preguntas.length) {
                 cargarPregunta();
             } else {
-                document.querySelector('.card').innerHTML = "<h2>¡Completado!</h2><p>Has terminado la evaluación con éxito.</p>";
+                document.getElementById('contenedor-evaluacion').innerHTML = "<h2>¡Terminado!</h2><p>Has completado el examen del PDF.</p><button class='btn btn-ia' onclick='location.reload()'>Hacer otro</button>";
             }
         }, 1500);
     }
 
-    // Iniciar la app
+    // Registro de App Instalable
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('service-worker.js').catch(err => console.log(err));
+        });
+    }
+
     cargarPregunta();
 </script>
 
